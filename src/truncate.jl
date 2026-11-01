@@ -169,7 +169,7 @@ end
 # uses to compute `logtp`), and whether the upper bound lies below it, i.e. P(X ≤ upper) ≤ 1/2
 _lower_above_median(d::Truncated) = d.loglcdf >= -logtwo
 _lower_above_median(::RightTruncated) = false
-_upper_below_median(d::Truncated) = d.ucdf <= 1//2
+_upper_below_median(d::Truncated) = 2 * d.ucdf <= 1
 _upper_below_median(::LeftTruncated) = false
 
 # log P(X ≥ lower), log P(X ≤ upper) and log P(X > upper) for X ~ d.untruncated, with the
