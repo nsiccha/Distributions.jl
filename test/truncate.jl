@@ -237,3 +237,21 @@ end
     @test @inferred(cdf(dist, 2.82)) === 1.0
     @test @inferred(ccdf(dist, 2.82)) === 0.0
 end
+
+@testset "mass of a truncation in the upper tail" begin
+    # above the median, 1 - P(X < lower) rounds to zero in the tail, so P(X ≥ lower) must be
+    # computed directly
+    setprecision(BigFloat, 256) do
+        Q(z) = erfc(big(z) / sqrt(big(2))) / 2
+        for (d0, l, u, x, logtp) in (
+            (Normal(), 40.0, nothing, 40.5, log(Q(40))),
+            (LogNormal(-40.0, 1.0), 1.0, nothing, 1.5, log(Q(40))),
+            (Normal(), 40.0, 41.0, 40.5, log(Q(40) - Q(41))),
+            (Poisson(2.0), 40, nothing, 41, log(sum(exp(-big(2)) * big(2)^k / factorial(big(k)) for k in 40:400))),
+        )
+            d = truncated(d0, l, u)
+            @test d.logtp ≈ logtp rtol=1e-14
+            @test logpdf(d, x) ≈ logpdf(d0, x) - logtp rtol=1e-14
+        end
+    end
+end

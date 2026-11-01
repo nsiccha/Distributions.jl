@@ -53,7 +53,9 @@ function truncated(d::UnivariateDistribution, l::Real, ::Nothing)
     lcdf = exp(loglcdf)
 
     # (log)tp = (log) P(l ≤ X) where X ∼ d
-    logtp = log1mexp(loglcdf)
+    # Above the median, 1 - P(X < l) loses the mass in the tail (`loglcdf` rounds to zero), so
+    # P(l ≤ X) is evaluated directly
+    logtp = loglcdf < -logtwo ? log1mexp(loglcdf) : _logccdf_inclusive(d, l)
     tp = exp(logtp)
 
     l, loglcdf, lcdf, ucdf, tp, logtp = promote(l, loglcdf, lcdf, one(lcdf), tp, logtp)
@@ -72,7 +74,13 @@ function truncated(d::UnivariateDistribution, l::T, u::T) where {T <: Real}
     ucdf = exp(logucdf)
 
     # (log)tp = (log) P(l ≤ X ≤ u) where X ∼ d
-    logtp = logsubexp(loglcdf, logucdf)
+    # Above the median, P(X ≤ u) - P(X < l) loses the mass in the tail, so it is evaluated as
+    # P(X ≥ l) - P(X > u)
+    logtp = if loglcdf < -logtwo
+        logsubexp(loglcdf, logucdf)
+    else
+        logsubexp(_logccdf_inclusive(d, l), logccdf(d, u))
+    end
     tp = exp(logtp)
 
     Truncated(d, promote(l, u, loglcdf, lcdf, ucdf, tp, logtp)...)
@@ -85,6 +93,7 @@ Generic wrapper for a truncated distribution.
 
 The *truncated normal distribution* is a particularly important one in the family of truncated distributions.
 Unlike the general case, truncated normal distributions support `mean`, `mode`, `modes`, `var`, `std`, and `entropy`.
+Log-normal distributions truncated from one side (only a lower or only an upper bound) support `mean`, `var`, and `std`.
 """
 struct Truncated{D<:UnivariateDistribution, S<:ValueSupport, T<: Real, TL<:Union{T,Nothing}, TU<:Union{T,Nothing}} <: UnivariateDistribution{S}
     untruncated::D      # the original distribution (untruncated)
@@ -257,6 +266,7 @@ _use_multline_show(d::Truncated) = _use_multline_show(d.untruncated)
 ### specialized truncated distributions
 
 include(joinpath("truncated", "normal.jl"))
+include(joinpath("truncated", "lognormal.jl"))
 include(joinpath("truncated", "exponential.jl"))
 include(joinpath("truncated", "uniform.jl"))
 include(joinpath("truncated", "loguniform.jl"))
