@@ -160,9 +160,10 @@ end
 
 # Far in a tail, the cached probabilities of the bounds no longer carry the information the
 # distribution functions need: above the median, `lcdf` and `ucdf` round to one, and far below
-# it, `lcdf`, `ucdf` and `tp` underflow. The methods below therefore work with log probabilities
-# and, for a bound above the median, with the upper tail P(X > x) of the untruncated
-# distribution instead of P(X ≤ x).
+# it, `lcdf`, `ucdf` and `tp` underflow. For a bound above the median, the methods below
+# therefore work with the upper tail P(X > x) of the untruncated distribution instead of
+# P(X ≤ x), recomputing the tail probability of that bound. The log probabilities are used by
+# the log functions and the quantiles, and by `cdf` and `ccdf` where `tp` underflowed.
 
 # whether the lower bound lies above the median, i.e. P(X < lower) ≥ 1/2 (the test `truncated`
 # uses to compute `logtp`), and whether the upper bound lies below it, i.e. P(X ≤ upper) ≤ 1/2
@@ -253,9 +254,36 @@ function logpdf(d::Truncated, x::Real)
     return _in_closed_interval(x, d.lower, d.upper) ? result : oftype(result, -Inf)
 end
 
+# whether P(lower ≤ X ≤ upper) underflowed, so that only the log probabilities carry information
+_tp_underflows(d::Truncated) = !(d.tp >= floatmin(typeof(d.tp)))
+# P(X ≥ lower) and P(X > upper) for X ~ d.untruncated, with the values of a missing bound
+_ccdf_lower(d::Truncated) = _ccdf_inclusive(d.untruncated, d.lower)
+_ccdf_lower(d::RightTruncated) = one(d.tp)
+_ccdf_upper(d::Truncated) = ccdf(d.untruncated, d.upper)
+_ccdf_upper(d::LeftTruncated) = zero(d.tp)
+
 function cdf(d::Truncated, x::Real)
-    result = exp(logcdf(d, x))
-    return min(result, one(result))
+    if _tp_underflows(d)
+        result = exp(logcdf(d, x))
+        return min(result, one(result))
+    end
+    d0 = d.untruncated
+    result = if _lower_above_median(d)
+        # P(lower ≤ X ≤ x) = P(X ≥ lower) - P(X > x)
+        (_ccdf_lower(d) - ccdf(d0, x)) / d.tp
+    else
+        # P(lower ≤ X ≤ x) = P(X ≤ x) - P(X < lower)
+        (cdf(d0, x) - d.lcdf) / d.tp
+    end
+    result = clamp(result, 0, 1)
+    # Special cases for values outside of the support to avoid e.g. NaN issues with `Binomial`
+    return if d.lower !== nothing && x < d.lower
+        zero(result)
+    elseif d.upper !== nothing && x >= d.upper
+        one(result)
+    else
+        result
+    end
 end
 
 function logcdf(d::Truncated, x::Real)
@@ -283,8 +311,29 @@ function logcdf(d::Truncated, x::Real)
 end
 
 function ccdf(d::Truncated, x::Real)
-    result = exp(logccdf(d, x))
-    return min(result, one(result))
+    if _tp_underflows(d)
+        result = exp(logccdf(d, x))
+        return min(result, one(result))
+    end
+    d0 = d.untruncated
+    result = if _upper_below_median(d)
+        # P(x < X ≤ upper) = P(X ≤ upper) - P(X ≤ x)
+        (d.ucdf - cdf(d0, x)) / d.tp
+    else
+        # P(x < X ≤ upper) = P(X > x) - P(X > upper)
+        (ccdf(d0, x) - _ccdf_upper(d)) / d.tp
+    end
+    result = clamp(result, 0, 1)
+    # Special cases for values outside of the support to avoid e.g. NaN issues with `Binomial`
+    # (at `x == lower` the result is P(X > lower | lower ≤ X ≤ upper), which is less than one
+    # for a discrete distribution)
+    return if d.lower !== nothing && x < d.lower
+        one(result)
+    elseif d.upper !== nothing && x > d.upper
+        zero(result)
+    else
+        result
+    end
 end
 
 function logccdf(d::Truncated, x::Real)
