@@ -55,6 +55,9 @@ end
         for (μ, σ, x, side) in (
             (-3.0, 0.2, 1.0, :lower), (0.1, 0.5, 1.3, :lower), (-0.4, 0.2, 1.0, :lower), (2.0, 1.5, 0.5, :lower),
             (3.0, 0.2, 1.0, :upper), (0.1, 0.5, 1.3, :upper), (-2.0, 1.0, 1.0, :upper),
+            # bounds far below (lower) or above (upper) the median, where erfcx of the standardized
+            # quadrature points would overflow
+            (40.0, 1.0, 1.0, :lower), (37.0, 0.2, 1.0, :lower), (-40.0, 1.0, 1.0, :upper),
         )
             θ = [μ, σ, x]
             tdist(θ) = side === :lower ? truncated(LogNormal(θ[1], θ[2]); lower=θ[3]) : truncated(LogNormal(θ[1], θ[2]); upper=θ[3])

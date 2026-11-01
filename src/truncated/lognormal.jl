@@ -25,8 +25,14 @@
 function _tnvar_lower(z::Real)
     if !(z ≥ 2)
         # λ = φ(z) / Q(z) is the inverse Mills ratio. For z < 2 the cancellation in
-        # 1 - λ (λ - z) costs at most about two decimal digits.
-        λ = inv(sqrthalfπ * erfcx(z * invsqrt2))
+        # 1 - λ (λ - z) costs at most about two decimal digits. Below zero, Q(z) ≥ 1/2 and
+        # φ(z) underflows gracefully, whereas erfcx overflows for z < -37.7 (an infinite
+        # intermediate whose derivative turns reverse-mode gradients into NaN).
+        λ = if z < 0
+            2 * invsqrt2π * exp(-z^2 / 2) / erfc(z * invsqrt2)
+        else
+            inv(sqrthalfπ * erfcx(z * invsqrt2))
+        end
         return 1 - λ * (λ - z)
     else
         # Laplace's continued fraction λ - z = t₁ with t_k = k / (z + t_{k+1}), evaluated backwards
