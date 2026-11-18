@@ -1,0 +1,307 @@
+{
+  "schema": 1,
+  "line": {
+    "repo": "nsiccha/Distributions.jl",
+    "ref": "dogfood",
+    "sha": "9aecb20da46d7bcee26ad0d9c42468548a1bf5a1"
+  },
+  "upstream": {
+    "repo": "JuliaStats/Distributions.jl",
+    "ref": "master",
+    "sha": "264883fdcb5057038d32a0cf143c3dee189da32c"
+  },
+  "prepared_at": "2026-11-18T11:45:04Z",
+  "problems": [
+    {
+      "id": "dirichlet-multinomial-support",
+      "role": "fix",
+      "title": "DirichletMultinomial gives positive probability to counts with the wrong total",
+      "summary": "The support predicate rejects a count vector whose sum differs from the number of trials, but the density can still assign it positive probability.",
+      "repairs": [],
+      "upstream_refs": [
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/pull/2103",
+          "relation": "related"
+        }
+      ],
+      "draft": {
+        "title": "DirichletMultinomial gives positive probability to counts with the wrong total",
+        "body": "On Distributions.jl 0.25.135 with Julia 1.10.12:\n\n```julia\nusing Distributions\nd = DirichletMultinomial(2, ones(2))\nx = [1, 0]\n(insupport(d, x), pdf(d, x), logpdf(d, x))\n```\n\nThis returns `(false, 0.33333333333333337, -1.0986122886681096)`. The observation accounts for only one of two trials. Its probability should be zero and its log probability should be `-Inf`.\n\nThe proposed fix checks the existing support predicate before evaluating the log-gamma expression. It returns negative infinity in the promoted result type for an out-of-support observation.",
+        "prepared_at": "2026-11-18T11:45:04Z"
+      },
+      "fix": {
+        "branch": "fix/dirichletmultinomial-support",
+        "commits": [
+          {
+            "sha": "83cec5e3a8a35167d54f19da9dc5afb54f59273e",
+            "title": "Check DirichletMultinomial support before density evaluation",
+            "original": [
+              "83cec5e3a8a35167d54f19da9dc5afb54f59273e"
+            ]
+          }
+        ],
+        "why_together": "One commit adds the support check and regression tests for invalid counts, dimensions and result types."
+      },
+      "depends_on": [],
+      "requires": [],
+      "validation": [
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "test/multivariate/dirichletmultinomial.jl"
+          ],
+          "result": "passed",
+          "detail": "258 of 258 checks in this file passed on dogfood 9aecb20da46d with StatsFuns 2.3.1. The combined selection passed 118,717 of 118,717."
+        },
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "Draft reproducer and expected results"
+          ],
+          "result": "passed",
+          "detail": "Reproduced the reported upstream behavior at 264883fdcb50. On dogfood 9aecb20da46d, all 3 checks for this example passed."
+        }
+      ]
+    },
+    {
+      "id": "truncated-tail-probabilities",
+      "role": "fix",
+      "title": "The CDF of a normal truncated to [8, 9] is too large at 8.1",
+      "summary": "Subtracting CDF values that round near one loses the interval mass. Conditional probabilities and their inverses can be inaccurate even when a finite result is representable.",
+      "repairs": [],
+      "upstream_refs": [
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/issues/2089",
+          "relation": "reports"
+        },
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/pull/2101",
+          "relation": "related"
+        }
+      ],
+      "draft": {
+        "title": "The CDF of a normal truncated to [8, 9] is too large at 8.1",
+        "body": "On Distributions.jl 0.25.135 with Julia 1.10.12:\n\n```julia\nusing Distributions\nn = Normal()\nt = truncated(n, 8, 9)\nq(x) = ccdf(n, x)\ncdf(t, 8.1)\n(q(8) - q(8.1)) / (q(8) - q(9))\n```\n\nThe CDF returns `0.7139890769706131`. The second expression gives `0.5583754014201238` for the same conditional probability using upper-tail masses.\n\nThe proposed fix evaluates the interval mass and distribution functions from the better-resolved tail, uses log probabilities when ordinary probabilities underflow, and uses the same convention for quantiles and sampling.",
+        "prepared_at": "2026-11-18T11:45:04Z"
+      },
+      "fix": {
+        "branch": "upstream/truncated-tails",
+        "commits": [
+          {
+            "sha": "9e5b23a4fc9ea9e66bd4461ddf3d1c753ea05842",
+            "title": "Evaluate truncated distributions accurately far in the tails",
+            "original": [
+              "9e5b23a4fc9ea9e66bd4461ddf3d1c753ea05842"
+            ]
+          }
+        ],
+        "why_together": "One extracted commit updates the cached mass, forward functions and inverse functions together. High-precision conditional probabilities and sampling tests exercise their agreement. When applying the original patch to 0.25.135, keep the upstream project version."
+      },
+      "depends_on": [],
+      "requires": [],
+      "validation": [
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "test/truncate.jl"
+          ],
+          "result": "passed",
+          "detail": "6,432 of 6,432 checks in this file passed on dogfood 9aecb20da46d with StatsFuns 2.3.1. The combined selection passed 118,717 of 118,717."
+        },
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "Draft reproducer and expected results"
+          ],
+          "result": "passed",
+          "detail": "Reproduced the reported upstream behavior at 264883fdcb50. On dogfood 9aecb20da46d, all 1 check for this example passed."
+        }
+      ]
+    },
+    {
+      "id": "truncated-discrete-lower-atom",
+      "role": "fix",
+      "title": "The complementary CDF includes the lower atom of a truncated discrete distribution",
+      "summary": "At an included lower bound, the strict upper-tail probability excludes the probability mass at that bound.",
+      "repairs": [],
+      "upstream_refs": [
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/issues/2095",
+          "relation": "reports"
+        },
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/pull/2101",
+          "relation": "related"
+        }
+      ],
+      "draft": {
+        "title": "The complementary CDF includes the lower atom of a truncated discrete distribution",
+        "body": "On Distributions.jl 0.25.135 with Julia 1.10.12:\n\n```julia\nusing Distributions\np = Poisson(2.0)\nt = truncated(p; lower=2)\n(ccdf(t, 2), logccdf(t, 2))\nref = ccdf(p, 2) / ccdf(p, 1)\n```\n\nThe first line evaluating the tail returns `(1.0, 0.0)`. The expected probability is `ref ≈ 0.5443211581443945`, so the expected log probability is `log(ref)`. Conditioning includes 2, whereas the event in the numerator is strictly greater than 2.\n\nThe proposed fix returns probability one only below the lower bound. At the lower bound it computes the strict upper tail divided by the mass of the inclusive truncation interval.",
+        "prepared_at": "2026-11-18T11:45:04Z"
+      },
+      "fix": {
+        "branch": "upstream/truncated-tails",
+        "commits": [
+          {
+            "sha": "9e5b23a4fc9ea9e66bd4461ddf3d1c753ea05842",
+            "title": "Evaluate truncated distributions accurately far in the tails",
+            "original": [
+              "9e5b23a4fc9ea9e66bd4461ddf3d1c753ea05842"
+            ]
+          }
+        ],
+        "why_together": "The published tail commit supplies both the strict endpoint handling and the inclusive normalization used there, with a discrete reference test. Apply it once for all truncation-tail entries."
+      },
+      "depends_on": [],
+      "requires": [],
+      "validation": [
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "test/truncate.jl"
+          ],
+          "result": "passed",
+          "detail": "6,432 of 6,432 checks in this file passed on dogfood 9aecb20da46d with StatsFuns 2.3.1. The combined selection passed 118,717 of 118,717."
+        },
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "Draft reproducer and expected results"
+          ],
+          "result": "passed",
+          "detail": "Reproduced the reported upstream behavior at 264883fdcb50. On dogfood 9aecb20da46d, all 2 checks for this example passed."
+        }
+      ]
+    },
+    {
+      "id": "truncated-discrete-quantile",
+      "role": "fix",
+      "title": "A finite quantile of a lower-truncated Poisson throws InexactError",
+      "summary": "An integer-valued quantile can fail while converting the infinite upper support bound to an integer.",
+      "repairs": [],
+      "upstream_refs": [
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/pull/2101",
+          "relation": "related"
+        }
+      ],
+      "draft": {
+        "title": "A finite quantile of a lower-truncated Poisson throws InexactError",
+        "body": "On Distributions.jl 0.25.135 with Julia 1.10.12:\n\n```julia\nusing Distributions\np = Poisson(2.0)\nt = truncated(p; lower=2)\nquantile(t, 0.5)\n```\n\nThis throws `InexactError: Int64(Inf)`. The conditional median is 3 because the conditional CDF is below one half at 2 and above one half at 3.\n\nThe proposed fix compares the computed quantile to the bounds first and converts a bound only if it actually replaces the quantile. An interior integer result therefore stays an integer when the distribution is unbounded above.",
+        "prepared_at": "2026-11-18T11:45:04Z"
+      },
+      "fix": {
+        "branch": "upstream/truncated-tails",
+        "commits": [
+          {
+            "sha": "9e5b23a4fc9ea9e66bd4461ddf3d1c753ea05842",
+            "title": "Evaluate truncated distributions accurately far in the tails",
+            "original": [
+              "9e5b23a4fc9ea9e66bd4461ddf3d1c753ea05842"
+            ]
+          }
+        ],
+        "why_together": "The shared quantile code and the discrete inversion tests are in the extracted tail commit. An already-applied copy of that commit also covers this case."
+      },
+      "depends_on": [],
+      "requires": [],
+      "validation": [
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "test/truncate.jl"
+          ],
+          "result": "passed",
+          "detail": "6,432 of 6,432 checks in this file passed on dogfood 9aecb20da46d with StatsFuns 2.3.1. The combined selection passed 118,717 of 118,717."
+        },
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "Draft reproducer and expected results"
+          ],
+          "result": "passed",
+          "detail": "Reproduced the reported upstream behavior at 264883fdcb50. On dogfood 9aecb20da46d, all 2 checks for this example passed."
+        }
+      ]
+    },
+    {
+      "id": "one-sided-truncated-lognormal-moments",
+      "role": "fix",
+      "title": "mean, var and std throw for a one-sided truncated LogNormal",
+      "summary": "The conditional moments exist for positive finite bounds, but the generic methods try to iterate over a distribution.",
+      "repairs": [],
+      "upstream_refs": [
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/issues/709",
+          "relation": "reports"
+        },
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/pull/1874",
+          "relation": "related"
+        },
+        {
+          "url": "https://github.com/JuliaStats/Distributions.jl/pull/2102",
+          "relation": "related"
+        }
+      ],
+      "draft": {
+        "title": "mean, var and std throw for a one-sided truncated LogNormal",
+        "body": "On Distributions.jl 0.25.135 with Julia 1.10.12:\n\n```julia\nusing Distributions\nn = Normal()\nt = truncated(LogNormal(); lower=1.0)\nmean(t)  # var(t) and std(t) also throw\n# Independent reference values for this lower bound:\nm = 2exp(0.5) * cdf(n, 1)\nv = 2exp(2) * cdf(n, 2) - m^2\n```\n\nEach call throws a `MethodError` for `iterate`. The expected mean, variance and standard deviation are `m`, `v` and `sqrt(v)`. Here the cutoff is the median, so half the untruncated mass remains.\n\nThe proposed fix adds methods for lower-only and upper-only truncation. It uses ratios of normal tails for the mean and evaluates the variance without subtracting nearly equal raw moments.",
+        "prepared_at": "2026-11-18T11:45:04Z"
+      },
+      "fix": {
+        "branch": "upstream/truncated-lognormal-moments",
+        "commits": [
+          {
+            "sha": "8830427848b17edde2886903955150c9fbd5e5c9",
+            "title": "Add mean and var of one-sided truncated LogNormal",
+            "original": [
+              "8830427848b17edde2886903955150c9fbd5e5c9"
+            ]
+          }
+        ],
+        "why_together": "The moments methods, documentation and high-precision regression tests are one extracted commit. The methods can be applied independently. For a distribution that also evaluates densities accurately at extreme cutoffs, include the tail-mass repair. Its old version-number hunk can be resolved by keeping the upstream project version when applying the patch to 0.25.135."
+      },
+      "depends_on": [],
+      "requires": [],
+      "validation": [
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "test/truncated/lognormal.jl"
+          ],
+          "result": "passed",
+          "detail": "489 of 489 checks in this file passed on dogfood 9aecb20da46d with StatsFuns 2.3.1. The combined selection passed 118,717 of 118,717."
+        },
+        {
+          "base": "264883fdcb5057038d32a0cf143c3dee189da32c",
+          "julia": "1.10.12",
+          "bounds": "forced",
+          "tests": [
+            "Draft reproducer and expected results"
+          ],
+          "result": "passed",
+          "detail": "Reproduced the reported upstream behavior at 264883fdcb50. On dogfood 9aecb20da46d, all 3 checks for this example passed."
+        }
+      ]
+    }
+  ]
+}
